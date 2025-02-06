@@ -1,4 +1,4 @@
-from typing import Set
+from typing import List, Set, Union
 import math
 import torch
 import torch.nn as nn
@@ -48,7 +48,8 @@ __all__ = [
     'SAMFeatureInteraction',
     'GraphAggregationLayer',
     'FiGNNLayer',
-    'ExtractionLayer'
+    'ExtractionLayer',
+    'SENet'
 ]
 
 
@@ -1566,4 +1567,98 @@ class ExtractionLayer(nn.Module):
     def extra_repr(self):
         return f'specific_experts_per_task={self.specific_experts_per_task}, ' + \
                 f'num_task={self.num_task}, num_shared_experts={self.num_shared_experts}'
+
+
+class SENet(nn.Module):
+    def __init__(
+            self,
+            c_in_dim: int,
+            x_in_dim: int,
+            hidden_dim: Union[int, float]=0.25,
+            r: float=2.0
+        ):
+        super(SENet, self).__init__()
+        self.c_in_dim = c_in_dim
+        self.x_in_dim = x_in_dim
+        self.hidden_dim = hidden_dim if isinstance(hidden_dim, int) else int(hidden_dim * x_in_dim)
+        self.r = r
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(c_in_dim, self.hidden_dim),
+            nn.ReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(self.hidden_dim, x_in_dim),
+            nn.Sigmoid()
+        )
+
+    def forward(self, c, x, return_weights=False):
+        h = self.fc1(c)
+        w = self.fc2(h) * self.r
+        out = w * x
+        if return_weights:
+            return out, w
+        return out, None
+    
+    def extra_repr(self):
+        return (f'c_in_dim={self.c_in_dim},'
+                f'x_in_dim={self.x_in_dim},' 
+                f'hidden={self.hidden_dim},'
+                f'r={self.r}')
+
+
+class SimpleGate(nn.Module):
+    def __init__(self, c_in_dim: int, x_in_dim: int, dropout: float=0.0):
+        super(SimpleGate, self).__init__()
+        self.gate = nn.Sequential(
+            nn.Linear(c_in_dim, x_in_dim),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, c, x, return_weights=False):
+        weight = self.gate(c)
+        out = weight * x
+        if return_weights:
+            return out, weight
+        return out, None
+    
+    def extra_repr(self):
+        return f'c_in_dim={self.c_in_dim}, x_in_dim={self.x_in_dim}'
+
+
+
+class ICGate(nn.Module):
+    def __init__(
+            self,
+            input_dim: int,
+            extract_layers: List[int],
+            num_embeddings: int, 
+            control_signal_dim: int,
+        ):
+        super(ICGate, self).__init__()
+        self.input_dim = input_dim
+        self.extract_layers = extract_layers
+        self.control_signal_extract_net = MLPModule(
+            mlp_layers=[input_dim] + extract_layers + [control_signal_dim],
+            activation_func='relu',
+            last_activation=False,
+            last_bn=False
+        )
+        self.emb = nn.Embedding(num_embeddings, control_signal_dim, padding_idx=0)
+        self.gate = SENet(
+            c_in_dim=control_signal_dim * 2,
+            x_in_dim=input_dim,
+            hidden_dim=0.25,
+            r=2.0
+        )
+
+    def forward(self, inputs, anchor_idx, return_weights=False):
+        anchor_emb = self.emb(anchor_idx)
+        control_signal = self.control_signal_extract_net(inputs)
+        gate_out, gate_weights = self.gate(
+            torch.cat([control_signal, anchor_emb], dim=-1),
+            inputs, 
+            return_weights=return_weights
+        )
+        return gate_out, gate_weights, control_signal
 

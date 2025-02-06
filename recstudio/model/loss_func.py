@@ -200,7 +200,7 @@ class BCEWithLogitLoss(PointwiseLoss):
 
     def forward(self, label, pos_score):
         loss = F.binary_cross_entropy_with_logits(
-            pos_score, label, reduction=self.reduction)
+            pos_score+1e-8, label, reduction=self.reduction)
         return loss
     
 class BCELoss(PointwiseLoss):

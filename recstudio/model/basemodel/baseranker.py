@@ -314,7 +314,7 @@ class BaseRanker(Recommender):
             
             if eval_domains:
                 overall_metrics = {r: defaultdict(lambda : 0.0) for r in frating}
-                overall_metrics.update({'bs': 0})
+                overall_metrics['bs'] = sum([v.sum() for v in bs.values()])
                 domain_frating = [f"{d}/{r}" for d in self.domain_dict.keys() for r in frating]
 
             for d_r in domain_frating:
@@ -356,7 +356,6 @@ class BaseRanker(Recommender):
                         out_r[k] = _sum_metrics / _sum_bs
                         if eval_domains:
                             overall_metrics[r][k] += _sum_metrics
-                            overall_metrics['bs'] += _sum_bs
 
                 # calculate global metrics like AUC.
                 if len(global_m) > 0:
@@ -384,6 +383,9 @@ class BaseRanker(Recommender):
                             overall_metrics[r][m] = f(overall_scores, overall_labels)
                     
                     overall_metrics[r] = dict(overall_metrics[r])
+            
+                if not isinstance(self.frating, list):  # multi-domain single task
+                    overall_metrics = overall_metrics[self.frating]
                     
                 out.update(dict(overall_metrics))
         return out

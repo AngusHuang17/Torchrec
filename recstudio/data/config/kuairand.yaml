@@ -1,7 +1,7 @@
 url: /data1/home/huangxu/work/ICGate/dataset/KuaiRand-Pure/filtered # Please look for https://kuairand.com/ for downloading
 user_id_field: &u user_id:token
 item_id_field: &i video_id:token
-rating_field: [is_click:float, is_like:float, is_follow:float, is_comment:float, is_forward:float, is_hate:float, long_view:float]
+rating_field: [is_click:float, long_view:float]
 time_field: &t time_ms:float
 time_format: ~
 

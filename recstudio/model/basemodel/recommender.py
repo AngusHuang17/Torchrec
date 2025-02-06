@@ -359,13 +359,17 @@ class Recommender(torch.nn.Module, abc.ABC):
             'xavier_uniform': init.xavier_uniform_initialization,
             'normal': init.normal_initialization(),
         }
-        for name, module in self.named_children():
-            if isinstance(module, Recommender):
-                module._init_parameter()
-            else:
-                method = self.config['train']['init_method']
-                init_method = init_methods[method]
-                module.apply(init_method)
+        load_ckpt_path = self.config['train'].get('load_ckpt_path', None)
+        if load_ckpt_path is not None:
+            self.load_checkpoint(load_ckpt_path)
+        else:
+            for name, module in self.named_children():
+                if isinstance(module, Recommender):
+                    module._init_parameter()
+                else:
+                    method = self.config['train']['init_method']
+                    init_method = init_methods[method]
+                    module.apply(init_method)
 
     @staticmethod
     def _get_dataset_class():
@@ -774,9 +778,10 @@ class Recommender(torch.nn.Module, abc.ABC):
 
     def load_checkpoint(self, path: str) -> None:
         ckpt = torch.load(path)
+        ckpt['config']['train']['epochs'] = self.config['train']['epochs']
         self.config = ckpt['config']
         # the _update_item_vector should be called, otherwise loading state_dict will
         # raise key unmapped error.
         if hasattr(self, '_update_item_vector') and (not hasattr(self,'item_vector')):
             self._update_item_vector()
-        self.load_state_dict(ckpt['parameters'])
+        self.load_state_dict(ckpt['parameters'], strict=False)
