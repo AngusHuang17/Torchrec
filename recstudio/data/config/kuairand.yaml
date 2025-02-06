@@ -1,4 +1,4 @@
-url: /data1/home/huangxu/work/ICGate/dataset/KuaiRand-Pure/filtered # Please look for https://kuairand.com/ for downloading
+url: ./dataset/KuaiRand-Pure/filtered # Please look for https://kuairand.com/ for downloading
 user_id_field: &u user_id:token
 item_id_field: &i video_id:token
 rating_field: [is_click:float, long_view:float]
